@@ -15,7 +15,7 @@ contract Remittances is Ownable, Destructible {
   mapping(address => mapping(address => Remittance)) public remittances;
 
 
-	function newRemittance(address receiver, uint duration, bytes32 hashedPassword1, bytes32 hashedPassword2) payable {
+  function newRemittance(address receiver, uint duration, bytes32 hashedPassword1, bytes32 hashedPassword2) payable {
     uint deadline = block.number + duration;
 
     // Check for overflow
