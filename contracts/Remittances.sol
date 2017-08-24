@@ -31,7 +31,7 @@ contract Remittances is Ownable, Destructible {
     remittances[msg.sender][receiver] = remittance;
   }
 
-  function withdraw(address sender, address receiver, bytes32 password1, bytes32 password2) {
+  function withdraw(address sender, address receiver, string password1, string password2) {
     Remittance storage remittance = remittances[sender][receiver];
 
     require(
