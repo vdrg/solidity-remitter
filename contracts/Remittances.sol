@@ -32,7 +32,7 @@ contract Remittances is Ownable, Destructible {
   }
 
   function withdraw(address sender, address receiver, bytes32 password1, bytes32 password2) {
-    Remittance memory remittance = remittances[sender][receiver];
+    Remittance storage remittance = remittances[sender][receiver];
 
     require(
       keccak256(password1) == remittance.hashedPassword1 &&
@@ -47,7 +47,7 @@ contract Remittances is Ownable, Destructible {
   }
 
   function claimBack(address receiver) {
-    Remittance memory remittance = remittances[msg.sender][receiver];
+    Remittance storage remittance = remittances[msg.sender][receiver];
     require(block.number < remittance.deadline);
 
     uint value = remittance.value;
