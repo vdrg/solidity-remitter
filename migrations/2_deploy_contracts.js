@@ -1,5 +1,5 @@
-var Remittances = artifacts.require("./Remittances.sol");
+var Remitter = artifacts.require("./Remitter.sol");
 
 module.exports = function(deployer) {
-  deployer.deploy(Remittances);
+  deployer.deploy(Remitter);
 };
