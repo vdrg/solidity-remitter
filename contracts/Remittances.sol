@@ -3,58 +3,68 @@ pragma solidity ^0.4.13;
 import 'zeppelin-solidity/contracts/ownership/Ownable.sol';
 import 'zeppelin-solidity/contracts/lifecycle/Destructible.sol';
 
-contract Remittances is Ownable, Destructible {
+contract Remitter is Ownable, Destructible {
 
   struct Remittance {
     uint deadline;
     uint value;
-    bytes32 hashedPassword1;
-    bytes32 hashedPassword2;
+    bytes32 lock; // keccak256(shopAddress, keccak256(password1, password2))
   }
 
-  mapping(address => mapping(address => Remittance)) public remittances;
+  // Maps an id to a remittance. 
+  // The id is the keccak256 hash of the remittance creator, the deadline and the lock.
+  mapping(bytes32 => Remittance) public remittances;
 
+  // Creates a remittance and returns it's id.
+  function newRemittance(uint duration, bytes32 lock) payable returns(bytes32 remittanceId) {
+    require(msg.value > 0);
 
-  function newRemittance(address receiver, uint duration, bytes32 hashedPassword1, bytes32 hashedPassword2) payable {
     uint deadline = block.number + duration;
 
     // Check for overflow
     assert(deadline > block.number && deadline > duration);
-
-    Remittance memory remittance = Remittance(
-      deadline,
-      msg.value,
-      hashedPassword1,
-      hashedPassword2
-    );
-
-    remittances[msg.sender][receiver] = remittance;
+    
+    // Return the new remittance's id
+    remittanceId = keccak256(msg.sender, deadline, lock);
+    
+    Remittance storage remittance = remittances[remittanceId];
+    require(remittance.lock == 0);
+      
+    remittance.deadline = deadline;
+    remittance.value = msg.value;
+    remittance.lock = lock;
   }
 
-  function withdraw(address sender, address receiver, string password1, string password2) {
-    Remittance storage remittance = remittances[sender][receiver];
+  // Creates a lock from the shopAddress and the passwords.
+  function createLock(address shopAddress, string password1, string password2) constant public returns(bytes32) {
+      return keccak256(shopAddress, keccak256(password1, password2));
+  }
+  
+  // This is called by the shop to withdraw funds, by providing the hash of the (tightly packed) passwords.
+  function unlockRemittance(bytes32 remittanceId, bytes32 hashedPasswords) {
+    Remittance storage remittance = remittances[remittanceId];
 
-    require(
-      keccak256(password1) == remittance.hashedPassword1 &&
-      keccak256(password2) == remittance.hashedPassword2
-    );
+    require(keccak256(msg.sender, hashedPasswords) == remittance.lock);
 
     uint value = remittance.value;
 
-    delete remittances[sender][receiver];
+    delete remittances[remittanceId];
 
     msg.sender.transfer(value);
   }
 
-  function claimBack(address receiver) {
-    Remittance storage remittance = remittances[msg.sender][receiver];
+  // This is called by the creator of a remittance to claim back it's funds (after the deadline).
+  function claimBack(bytes32 remittanceId) {
+    Remittance storage remittance = remittances[remittanceId];
     require(block.number < remittance.deadline);
+    require(remittanceId == keccak256(msg.sender, remittance.deadline, remittance.lock));
 
     uint value = remittance.value;
 
-    delete remittances[msg.sender][receiver];
+    delete remittances[remittanceId];
 
     msg.sender.transfer(value);
   }
+
 
 }
