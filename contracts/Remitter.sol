@@ -44,6 +44,7 @@ contract Remitter is Ownable, Destructible {
   function unlockRemittance(bytes32 remittanceId, bytes32 hashedPasswords) {
     Remittance storage remittance = remittances[remittanceId];
 
+    require(remittance.deadline <= block.number);
     require(keccak256(msg.sender, hashedPasswords) == remittance.lock);
 
     uint value = remittance.value;
