@@ -15,9 +15,15 @@ contract Remitter is Ownable, Destructible {
   // The id is the keccak256 hash of the remittance creator, the deadline and the lock.
   mapping(bytes32 => Remittance) public remittances;
 
+  mapping(bytes32 => bool) public lockUsed;
+
   // Creates a remittance and returns it's id.
   function newRemittance(uint duration, bytes32 lock) payable returns(bytes32 remittanceId) {
     require(msg.value > 0);
+
+    // Check that the log was not used before
+    require(!lockUsed[lock]);
+    lockUsed[lock] = true;
 
     uint deadline = block.number + duration;
 
@@ -36,7 +42,7 @@ contract Remitter is Ownable, Destructible {
   }
 
   // Creates a lock from the shopAddress and the passwords.
-  function createLock(address shopAddress, string password1, string password2) constant public returns(bytes32) {
+  function createLock(address shopAddress, bytes32 password1, bytes32 password2) constant public returns(bytes32) {
       return keccak256(shopAddress, keccak256(password1, password2));
   }
   
