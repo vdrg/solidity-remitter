@@ -3,12 +3,17 @@ pragma solidity ^0.4.13;
 import 'zeppelin-solidity/contracts/ownership/Ownable.sol';
 import 'zeppelin-solidity/contracts/lifecycle/Destructible.sol';
 
+/*
+ * This contract locks an amount of ether. The lock corresponds to keccak256(receiver, secret).
+ * To unlock the funds, the receiver must provide the secret.
+ * The secret can be anything agreed by the sender and the receiver (for example, the hash of some passwords).
+ */
 contract Remitter is Ownable, Destructible {
 
   struct Remittance {
     uint deadline;
     uint value;
-    bytes32 lock; // keccak256(shopAddress, keccak256(password1, password2))
+    bytes32 lock; // keccak256(receiver, secret)
   }
 
   // Maps an id to a remittance. 
@@ -29,29 +34,29 @@ contract Remitter is Ownable, Destructible {
 
     // Check for overflow
     assert(deadline > block.number && deadline > duration);
-    
+
     // Return the new remittance's id
     remittanceId = keccak256(msg.sender, deadline, lock);
-    
+
     Remittance storage remittance = remittances[remittanceId];
     require(remittance.lock == 0);
-      
+
     remittance.deadline = deadline;
     remittance.value = msg.value;
     remittance.lock = lock;
   }
 
-  // Creates a lock from the shopAddress and the passwords.
-  function createLock(address shopAddress, bytes32 password1, bytes32 password2) constant public returns(bytes32) {
-      return keccak256(shopAddress, keccak256(password1, password2));
+  // Obtains a lock from the receiver address and the secret.
+  function getLock(address receiver, bytes32 secret) constant public returns(bytes32) {
+    return keccak256(receiver, secret);
   }
-  
-  // This is called by the shop to withdraw funds, by providing the hash of the (tightly packed) passwords.
-  function unlockRemittance(bytes32 remittanceId, bytes32 hashedPasswords) {
+
+  // This is called by the receiver to withdraw funds, by providing the secret.
+  function unlockRemittance(bytes32 remittanceId, bytes32 secret) {
     Remittance storage remittance = remittances[remittanceId];
 
     require(remittance.deadline <= block.number);
-    require(keccak256(msg.sender, hashedPasswords) == remittance.lock);
+    require(getLock(msg.sender, secret) == remittance.lock);
 
     uint value = remittance.value;
 
@@ -72,6 +77,4 @@ contract Remitter is Ownable, Destructible {
 
     msg.sender.transfer(value);
   }
-
-
 }
