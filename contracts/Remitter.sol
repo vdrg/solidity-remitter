@@ -16,6 +16,10 @@ contract Remitter is Ownable, Destructible {
     bytes32 lock; // keccak256(receiver, secret)
   }
 
+  event LogNewRemittance(bytes32 indexed remittanceId, address indexed sender, uint deadline, uint value, bytes32 lock);
+  event LogRemittanceUnlocked(bytes32 indexed remittanceId, address indexed receiver, bytes32 lock, bytes32 secret);
+  event LogRemittanceClaimedBack(bytes32 indexed remittanceId, address indexed sender);
+
   // Maps an id to a remittance. 
   // The id is the keccak256 hash of the remittance creator, the deadline and the lock.
   mapping(bytes32 => Remittance) public remittances;
@@ -26,7 +30,7 @@ contract Remitter is Ownable, Destructible {
   function newRemittance(uint duration, bytes32 lock) payable returns(bytes32 remittanceId) {
     require(msg.value > 0);
 
-    // Check that the log was not used before
+    // Check that the lock was not used before
     require(!lockUsed[lock]);
     lockUsed[lock] = true;
 
@@ -44,6 +48,8 @@ contract Remitter is Ownable, Destructible {
     remittance.deadline = deadline;
     remittance.value = msg.value;
     remittance.lock = lock;
+
+    LogNewRemittance(remittanceId, msg.sender, deadline, msg.value, lock);
   }
 
   // Obtains a lock from the receiver address and the secret.
@@ -59,8 +65,11 @@ contract Remitter is Ownable, Destructible {
     require(getLock(msg.sender, secret) == remittance.lock);
 
     uint value = remittance.value;
+    bytes32 lock = remittance.lock;
 
     delete remittances[remittanceId];
+
+    LogRemittanceUnlocked(remittanceId, msg.sender, lock, secret);
 
     msg.sender.transfer(value);
   }
@@ -74,6 +83,8 @@ contract Remitter is Ownable, Destructible {
     uint value = remittance.value;
 
     delete remittances[remittanceId];
+
+    LogRemittanceClaimedBack(remittanceId, msg.sender);
 
     msg.sender.transfer(value);
   }
