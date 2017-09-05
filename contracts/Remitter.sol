@@ -14,24 +14,26 @@ contract Remitter is Ownable, Destructible {
     address sender;
     uint deadline;
     uint value;
-    bool initialized;
   }
 
-  event LogNewRemittance(address indexed sender, uint deadline, uint value, bytes32 lock);
+  event LogNewRemittance(address indexed sender, uint deadline, bytes32 lock, uint value);
   event LogRemittanceUnlocked(address indexed receiver, bytes32 lock, bytes32 secret);
-  event LogRemittanceClaimedBack(address indexed sender, uint value);
+  event LogRemittanceClaimedBack(address indexed sender, bytes32 lock, uint value);
 
   // Maps a lock to a remittance. 
   mapping(bytes32 => Remittance) public remittances;
 
   // Creates a remittance and returns it's id.
-  function newRemittance(uint duration, bytes32 lock) payable {
+  function newRemittance(uint duration, bytes32 lock)
+    payable
+    returns(bool success) 
+  {
     require(msg.value > 0 && duration > 0);
 
     Remittance storage remittance = remittances[lock];
 
     // Check that the lock was not used before
-    require(!remittance.initialized);
+    require(remittance.value == 0);
 
     uint deadline = block.number + duration;
 
@@ -41,9 +43,9 @@ contract Remitter is Ownable, Destructible {
     remittance.sender = msg.sender;
     remittance.value = msg.value;
     remittance.deadline = deadline;
-    remittance.initialized = true;
 
-    LogNewRemittance(msg.sender, deadline, msg.value, lock);
+    LogNewRemittance(msg.sender, deadline, lock, msg.value);
+    return true;
   }
 
   // Obtains a lock from the receiver address and the secret.
@@ -52,11 +54,10 @@ contract Remitter is Ownable, Destructible {
   }
 
   // This is called by the receiver to withdraw funds, by providing the secret.
-  function unlockRemittance(bytes32 secret) {
+  function unlockRemittance(bytes32 secret) returns(bool success) {
     bytes32 lock = getLock(msg.sender, secret);
     Remittance storage remittance = remittances[lock];
 
-    require(remittance.initialized == true);
     require(remittance.value > 0);
     require(remittance.deadline <= block.number);
 
@@ -66,19 +67,21 @@ contract Remitter is Ownable, Destructible {
 
     remittance.value = 0;
     msg.sender.transfer(value);
+    return true;
   }
 
   // This is called by the creator of a remittance to claim back it's funds (after the deadline).
-  function claimBack(bytes32 lock) {
+  function claimBack(bytes32 lock) returns(bool success) {
     Remittance storage remittance = remittances[lock];
     require(block.number < remittance.deadline);
     require(remittance.sender == msg.sender);
 
     uint value = remittance.value;
 
-    LogRemittanceClaimedBack(msg.sender, value);
+    LogRemittanceClaimedBack(msg.sender, lock, value);
 
     remittance.value = 0;
     msg.sender.transfer(value);
+    return true;
   }
 }
