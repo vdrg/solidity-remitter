@@ -11,45 +11,39 @@ import 'zeppelin-solidity/contracts/lifecycle/Destructible.sol';
 contract Remitter is Ownable, Destructible {
 
   struct Remittance {
+    address sender;
     uint deadline;
     uint value;
-    bytes32 lock; // keccak256(receiver, secret)
+    bool initialized;
   }
 
-  event LogNewRemittance(bytes32 indexed remittanceId, address indexed sender, uint deadline, uint value, bytes32 lock);
-  event LogRemittanceUnlocked(bytes32 indexed remittanceId, address indexed receiver, bytes32 lock, bytes32 secret);
-  event LogRemittanceClaimedBack(bytes32 indexed remittanceId, address indexed sender);
+  event LogNewRemittance(address indexed sender, uint deadline, uint value, bytes32 lock);
+  event LogRemittanceUnlocked(address indexed receiver, bytes32 lock, bytes32 secret);
+  event LogRemittanceClaimedBack(address indexed sender, uint value);
 
-  // Maps an id to a remittance. 
-  // The id is the keccak256 hash of the remittance creator, the deadline and the lock.
+  // Maps a lock to a remittance. 
   mapping(bytes32 => Remittance) public remittances;
 
-  mapping(bytes32 => bool) public lockUsed;
-
   // Creates a remittance and returns it's id.
-  function newRemittance(uint duration, bytes32 lock) payable returns(bytes32 remittanceId) {
-    require(msg.value > 0);
+  function newRemittance(uint duration, bytes32 lock) payable {
+    require(msg.value > 0 && duration > 0);
+
+    Remittance storage remittance = remittances[lock];
 
     // Check that the lock was not used before
-    require(!lockUsed[lock]);
-    lockUsed[lock] = true;
+    require(!remittance.initialized);
 
     uint deadline = block.number + duration;
 
     // Check for overflow
     assert(deadline > block.number && deadline > duration);
 
-    // Return the new remittance's id
-    remittanceId = keccak256(msg.sender, deadline, lock);
-
-    Remittance storage remittance = remittances[remittanceId];
-    require(remittance.lock == 0);
-
-    remittance.deadline = deadline;
+    remittance.sender = msg.sender;
     remittance.value = msg.value;
-    remittance.lock = lock;
+    remittance.deadline = deadline;
+    remittance.initialized = true;
 
-    LogNewRemittance(remittanceId, msg.sender, deadline, msg.value, lock);
+    LogNewRemittance(msg.sender, deadline, msg.value, lock);
   }
 
   // Obtains a lock from the receiver address and the secret.
@@ -58,34 +52,33 @@ contract Remitter is Ownable, Destructible {
   }
 
   // This is called by the receiver to withdraw funds, by providing the secret.
-  function unlockRemittance(bytes32 remittanceId, bytes32 secret) {
-    Remittance storage remittance = remittances[remittanceId];
+  function unlockRemittance(bytes32 secret) {
+    bytes32 lock = getLock(msg.sender, secret);
+    Remittance storage remittance = remittances[lock];
 
+    require(remittance.initialized == true);
+    require(remittance.value > 0);
     require(remittance.deadline <= block.number);
-    require(getLock(msg.sender, secret) == remittance.lock);
 
     uint value = remittance.value;
-    bytes32 lock = remittance.lock;
 
-    delete remittances[remittanceId];
+    LogRemittanceUnlocked(msg.sender, lock, secret);
 
-    LogRemittanceUnlocked(remittanceId, msg.sender, lock, secret);
-
+    remittance.value = 0;
     msg.sender.transfer(value);
   }
 
   // This is called by the creator of a remittance to claim back it's funds (after the deadline).
-  function claimBack(bytes32 remittanceId) {
-    Remittance storage remittance = remittances[remittanceId];
+  function claimBack(bytes32 lock) {
+    Remittance storage remittance = remittances[lock];
     require(block.number < remittance.deadline);
-    require(remittanceId == keccak256(msg.sender, remittance.deadline, remittance.lock));
+    require(remittance.sender == msg.sender);
 
     uint value = remittance.value;
 
-    delete remittances[remittanceId];
+    LogRemittanceClaimedBack(msg.sender, value);
 
-    LogRemittanceClaimedBack(remittanceId, msg.sender);
-
+    remittance.value = 0;
     msg.sender.transfer(value);
   }
 }
