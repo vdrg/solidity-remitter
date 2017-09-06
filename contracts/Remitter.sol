@@ -16,9 +16,9 @@ contract Remitter is Ownable, Destructible {
     uint value;
   }
 
-  event LogNewRemittance(address indexed sender, uint deadline, bytes32 lock, uint value);
-  event LogRemittanceUnlocked(address indexed receiver, bytes32 lock, bytes32 secret);
-  event LogRemittanceClaimedBack(address indexed sender, bytes32 lock, uint value);
+  event LogNewRemittance(address indexed sender, bytes32 indexed lock, uint deadline, uint value);
+  event LogRemittanceUnlocked(address indexed receiver, bytes32 indexed lock, bytes32 secret);
+  event LogRemittanceClaimedBack(address indexed sender, bytes32 indexed lock, uint value);
 
   // Maps a lock to a remittance. 
   mapping(bytes32 => Remittance) public remittances;
@@ -44,7 +44,7 @@ contract Remitter is Ownable, Destructible {
     remittance.value = msg.value;
     remittance.deadline = deadline;
 
-    LogNewRemittance(msg.sender, deadline, lock, msg.value);
+    LogNewRemittance(msg.sender, lock, deadline, msg.value);
     return true;
   }
 
