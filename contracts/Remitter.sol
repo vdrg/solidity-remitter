@@ -23,7 +23,7 @@ contract Remitter is Ownable, Destructible {
   // Maps a lock to a remittance. 
   mapping(bytes32 => Remittance) public remittances;
 
-  // Creates a remittance and returns it's id.
+  // Creates a new remittance.
   function newRemittance(uint duration, bytes32 lock)
     payable
     returns(bool success) 
